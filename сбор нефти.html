@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Очистка леса</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background-image: url('https://github.com/ArsikZhiga/sbornefti/blob/main/photo_2025-10-30_17-08-03.jpg?raw=true');
+            background-size: cover;
+            background-position: center;
+        }
+
+        /* Стили для луж нефти - более реалистичные */
+        .oil-puddle {
+            position: absolute;
+            background: #1a1a1a;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 
+                inset 0 0 20px rgba(0, 0, 0, 0.8),
+                0 0 15px rgba(0, 0, 0, 0.6);
+            border: 2px solid #000;
+            opacity: 0.9;
+        }
+
+        /* Разные формы луж */
+        .oil-puddle.shape1 {
+            border-radius: 40% 60% 60% 40% / 50% 40% 60% 50%;
+            transform: rotate(15deg);
+        }
+
+        .oil-puddle.shape2 {
+            border-radius: 60% 40% 40% 60% / 50% 60% 40% 50%;
+            transform: rotate(-10deg);
+        }
+
+        .oil-puddle.shape3 {
+            border-radius: 50% 50% 40% 60% / 60% 40% 60% 40%;
+            transform: rotate(5deg);
+        }
+
+        .oil-puddle.shape4 {
+            border-radius: 40% 60% 60% 40% / 60% 50% 50% 40%;
+            transform: rotate(-15deg);
+        }
+
+        .oil-puddle.dragging {
+            transform: scale(0.8) rotate(0deg);
+            box-shadow: 
+                inset 0 0 20px rgba(0, 0, 0, 0.8),
+                0 0 25px rgba(255, 215, 0, 0.6);
+            z-index: 1000;
+            opacity: 1;
+            border: 2px solid #FFD700;
+            animation: float 1s ease-in-out infinite;
+            transition: none;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: scale(0.8) translateY(0px); }
+            50% { transform: scale(0.8) translateY(-5px); }
+        }
+
+        /* БОЛЬШОЙ РЕЗЕРВУАР */
+        .tank {
+            position: absolute;
+            right: 40px;
+            bottom: 40px;
+            width: 200px;
+            height: 300px;
+            border: 6px solid #333;
+            border-radius: 15px;
+            background: linear-gradient(135deg, #666, #888);
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.6);
+        }
+
+        .tank-fill {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: linear-gradient(to top, #1a1a1a, #2d2d2d);
+            transition: height 0.3s ease;
+            height: 0%;
+            border-radius: 0 0 8px 8px;
+        }
+
+        .tank-label {
+            position: absolute;
+            top: -50px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 22px;
+            border: 3px solid #FFD700;
+            min-width: 100px;
+            text-align: center;
+            z-index: 100;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+        }
+
+        .tank::before {
+            content: '';
+            position: absolute;
+            top: -15px;
+            left: 15px;
+            right: 15px;
+            height: 25px;
+            background: #555;
+            border-radius: 8px 8px 0 0;
+            z-index: 2;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Добавим индикатор уровня */
+        .tank-levels {
+            position: absolute;
+            left: -30px;
+            top: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 10px 0;
+        }
+
+        .tank-level {
+            width: 20px;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.6);
+            margin: 20px 0;
+        }
+
+        /* Счетчик */
+        .counter {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 18px 25px;
+            border-radius: 15px;
+            font-weight: bold;
+            font-size: 24px;
+            border: 3px solid #FFD700;
+            z-index: 100;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+        }
+
+        /* Сообщения */
+        .message {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 20px 35px;
+            border-radius: 15px;
+            font-weight: bold;
+            font-size: 20px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            border: 3px solid #FFD700;
+            text-align: center;
+            z-index: 100;
+            box-shadow: 0 0 25px rgba(255, 215, 0, 0.4);
+        }
+
+        .message.show {
+            opacity: 1;
+        }
+
+        /* Инструкция */
+        .instructions {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 18px;
+            border-radius: 12px;
+            font-size: 15px;
+            border: 2px solid #FFD700;
+            max-width: 280px;
+            z-index: 100;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+        }
+
+        /* Анимация заполнения */
+        @keyframes fillPulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.9; }
+            100% { opacity: 1; }
+        }
+
+        .tank-fill.filling {
+            animation: fillPulse 0.5s ease-in-out;
+        }
+
+        /* СТИЛИ ДЛЯ КОНЕЧНОЙ НАДПИСИ */
+        .victory-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            backdrop-filter: blur(5px);
+        }
+
+        .victory-message {
+            background: linear-gradient(135deg, #1a6b1a, #2d8b2d);
+            padding: 50px;
+            border-radius: 20px;
+            text-align: center;
+            border: 4px solid #4CAF50;
+            box-shadow: 0 0 50px rgba(76, 175, 80, 0.7);
+            transform: scale(0);
+            animation: victoryAppear 0.8s ease-out forwards;
+            max-width: 500px;
+        }
+
+        @keyframes victoryAppear {
+            0% {
+                transform: scale(0) rotate(-10deg);
+                opacity: 0;
+            }
+            70% {
+                transform: scale(1.1) rotate(5deg);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1) rotate(0deg);
+                opacity: 1;
+            }
+        }
+
+        .victory-title {
+            font-size: 48px;
+            font-weight: bold;
+            color: #4CAF50;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
+            animation: textGlow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes textGlow {
+            0% {
+                text-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
+                transform: scale(1);
+            }
+            100% {
+                text-shadow: 0 0 30px rgba(76, 175, 80, 0.8), 0 0 40px rgba(76, 175, 80, 0.6);
+                transform: scale(1.05);
+            }
+        }
+
+        .victory-subtitle {
+            font-size: 24px;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .victory-stats {
+            font-size: 20px;
+            color: #4CAF50;
+            margin-bottom: 30px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #4CAF50;
+        }
+
+        .restart-button {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
+        }
+
+        .restart-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 30px rgba(76, 175, 80, 0.8);
+        }
+
+        .leaf {
+            position: absolute;
+            width: 15px;
+            height: 15px;
+            background: #4CAF50;
+            animation: leafFall 4s ease-in-out forwards;
+            border-radius: 50% 0 50% 0;
+        }
+
+        @keyframes leafFall {
+            0% {
+                transform: translateY(-100px) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(100vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container" id="gameContainer">
+        <div class="instructions">
+            <strong>Как играть:</strong><br>
+            • Наведите на лужу нефти<br>
+            • Зажмите левую кнопку мыши<br>
+            • Перетащите в резервуар<br>
+            • Очистите лес от нефти!
+        </div>
+        
+        <div class="counter" id="counter">Собрано: 0/10</div>
+        
+        <div class="tank">
+            <div class="tank-levels">
+                <div class="tank-level"></div>
+                <div class="tank-level"></div>
+                <div class="tank-level"></div>
+                <div class="tank-level"></div>
+                <div class="tank-level"></div>
+            </div>
+            <div class="tank-label" id="oilCounter">0/10</div>
+            <div class="tank-fill" id="tankFill"></div>
+        </div>
+        <div class="message" id="message"></div>
+    </div>
+
+    <!-- КОНЕЧНАЯ НАДПИСЬ -->
+    <div class="victory-overlay" id="victoryOverlay">
+        <div class="victory-message">
+            <div class="victory-title">🌿 УСПЕХ! 🌿</div>
+            <div class="victory-subtitle">Лес очищен от нефти!</div>
+            <div class="victory-stats" id="victoryStats">
+                Собрано: 10/10 луж нефти<br>
+                Природа благодарит вас!
+            </div>
+            <button class="restart-button" onclick="restartGame()">Играть снова</button>
+        </div>
+    </div>
+
+    <script>
+        const gameContainer = document.getElementById('gameContainer');
+        const tankFill = document.getElementById('tankFill');
+        const oilCounter = document.getElementById('oilCounter');
+        const counter = document.getElementById('counter');
+        const message = document.getElementById('message');
+        const victoryOverlay = document.getElementById('victoryOverlay');
+        const victoryStats = document.getElementById('victoryStats');
+
+        let collectedOil = 0;
+        const totalOilNeeded = 10;
+        let isDragging = false;
+        let currentDrop = null;
+        let startX, startY, initialX, initialY;
+        let gameCompleted = false;
+
+        // Создаем лужи нефти ЕЩЕ НИЖЕ - В НИЖНЕЙ ТРЕТИ ЭКРАНА
+        function createOilPuddles() {
+            for (let i = 0; i < totalOilNeeded; i++) {
+                createOilPuddle();
+            }
+        }
+
+        function createOilPuddle() {
+            const puddle = document.createElement('div');
+            puddle.className = 'oil-puddle';
+            
+            const shapeClass = 'shape' + (Math.floor(Math.random() * 4) + 1);
+            puddle.classList.add(shapeClass);
+            
+            const width = Math.random() * 80 + 60;
+            const height = Math.random() * 60 + 40;
+            puddle.style.width = width + 'px';
+            puddle.style.height = height + 'px';
+            
+            // ОГРАНИЧИВАЕМ СПАВН НИЖНЕЙ ТРЕТЬЮ ЭКРАНА (ЕЩЕ НИЖЕ)
+            const screenHeight = window.innerHeight;
+            
+            // Теперь используем только нижнюю треть экрана
+            const minY = screenHeight * 0.66; // Начинаем с 2/3 высоты экрана
+            const maxY = screenHeight - 120; // Оставляем место для резервуара
+            
+            // Позиция по X (избегаем правого края с резервуаром)
+            const minX = 50;
+            const maxX = window.innerWidth - 250;
+            
+            const x = Math.random() * (maxX - minX) + minX;
+            const y = Math.random() * (maxY - minY) + minY;
+            
+            puddle.style.left = x + 'px';
+            puddle.style.top = y + 'px';
+            
+            puddle.innerHTML = '<div style="position:absolute; top:20%; left:30%; width:20%; height:15%; background:rgba(100,100,100,0.3); border-radius:50%; transform:rotate(45deg);"></div>';
+            
+            gameContainer.appendChild(puddle);
+            
+            puddle.addEventListener('mousedown', startDrag);
+            puddle.addEventListener('touchstart', startDrag);
+        }
+
+        function startDrag(e) {
+            if (isDragging || gameCompleted) return;
+            
+            isDragging = true;
+            currentDrop = e.target;
+            
+            if (e.type === 'mousedown') {
+                startX = e.clientX;
+                startY = e.clientY;
+            } else {
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+            }
+            
+            initialX = parseInt(currentDrop.style.left) || 0;
+            initialY = parseInt(currentDrop.style.top) || 0;
+            
+            currentDrop.classList.add('dragging');
+            
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('touchmove', drag);
+            document.addEventListener('mouseup', endDrag);
+            document.addEventListener('touchend', endDrag);
+            
+            e.preventDefault();
+        }
+
+        function drag(e) {
+            if (!isDragging || !currentDrop || gameCompleted) return;
+            
+            let clientX, clientY;
+            
+            if (e.type.includes('touch')) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            
+            const deltaX = clientX - startX;
+            const deltaY = clientY - startY;
+            
+            const newX = initialX + deltaX;
+            const newY = initialY + deltaY;
+            
+            currentDrop.style.left = newX + 'px';
+            currentDrop.style.top = newY + 'px';
+            
+            e.preventDefault();
+        }
+
+        function endDrag(e) {
+            if (!isDragging || !currentDrop || gameCompleted) return;
+            
+            isDragging = false;
+            currentDrop.classList.remove('dragging');
+            
+            const tankRect = document.querySelector('.tank').getBoundingClientRect();
+            const dropRect = currentDrop.getBoundingClientRect();
+            
+            const isOverTank = 
+                dropRect.left < tankRect.right &&
+                dropRect.right > tankRect.left &&
+                dropRect.top < tankRect.bottom &&
+                dropRect.bottom > tankRect.top;
+            
+            if (isOverTank) {
+                collectOil();
+            } else {
+                // При возврате тоже размещаем только в нижней трети
+                const screenHeight = window.innerHeight;
+                const minY = screenHeight * 0.66;
+                const maxY = screenHeight - 120;
+                const minX = 50;
+                const maxX = window.innerWidth - 250;
+                
+                const x = Math.random() * (maxX - minX) + minX;
+                const y = Math.random() * (maxY - minY) + minY;
+                
+                currentDrop.style.left = x + 'px';
+                currentDrop.style.top = y + 'px';
+            }
+            
+            document.removeEventListener('mousemove', drag);
+            document.removeEventListener('touchmove', drag);
+            document.removeEventListener('mouseup', endDrag);
+            document.removeEventListener('touchend', endDrag);
+            
+            currentDrop = null;
+        }
+
+        function collectOil() {
+            if (gameCompleted) return;
+            
+            collectedOil++;
+            
+            oilCounter.textContent = collectedOil + '/' + totalOilNeeded;
+            counter.textContent = 'Собрано: ' + collectedOil + '/' + totalOilNeeded;
+            
+            const fillPercentage = (collectedOil / totalOilNeeded) * 100;
+            
+            tankFill.classList.add('filling');
+            tankFill.style.height = fillPercentage + '%';
+            
+            setTimeout(() => {
+                tankFill.classList.remove('filling');
+            }, 500);
+            
+            if (currentDrop && currentDrop.parentNode) {
+                currentDrop.remove();
+            }
+            
+            showMessage('+1 нефть собрана! ' + collectedOil + '/' + totalOilNeeded);
+            
+            if (collectedOil >= totalOilNeeded) {
+                gameCompleted = true;
+                setTimeout(() => {
+                    showVictoryMessage();
+                }, 1000);
+            }
+        }
+
+        function showVictoryMessage() {
+            // Создаем падающие листья вместо конфетти
+            createLeaves();
+            
+            // Показываем победный экран
+            victoryOverlay.style.display = 'flex';
+            victoryStats.innerHTML = `
+                Собрано: ${collectedOil}/${totalOilNeeded} луж нефти<br>
+                ${getCongratulationMessage()}
+            `;
+        }
+
+        function createLeaves() {
+            const leafColors = ['#4CAF50', '#45a049', '#388E3C', '#2E7D32'];
+            for (let i = 0; i < 50; i++) {
+                const leaf = document.createElement('div');
+                leaf.className = 'leaf';
+                leaf.style.left = Math.random() * 100 + 'vw';
+                leaf.style.background = leafColors[Math.floor(Math.random() * leafColors.length)];
+                leaf.style.animationDelay = Math.random() * 3 + 's';
+                leaf.style.width = Math.random() * 10 + 8 + 'px';
+                leaf.style.height = Math.random() * 10 + 8 + 'px';
+                document.body.appendChild(leaf);
+                
+                // Удаляем листья после анимации
+                setTimeout(() => {
+                    if (leaf.parentNode) {
+                        leaf.remove();
+                    }
+                }, 4000);
+            }
+        }
+
+        function getCongratulationMessage() {
+            const messages = [
+                "Природа благодарит вас!",
+                "Лес снова чист и прекрасен!",
+                "Отличная экологическая работа!",
+                "Вы спасли лес от загрязнения!",
+                "Экосистема восстановлена!"
+            ];
+            return messages[Math.floor(Math.random() * messages.length)];
+        }
+
+        function restartGame() {
+            location.reload();
+        }
+
+        function showMessage(text) {
+            message.textContent = text;
+            message.classList.add('show');
+            
+            setTimeout(() => {
+                message.classList.remove('show');
+            }, 2000);
+        }
+
+        // Инициализация игры
+        createOilPuddles();
+        showMessage('Очистите лес от нефти!');
+    </script>
+</body>
+</html>
